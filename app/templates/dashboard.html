@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatGate</title>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #121b2e; --border: #22304a; --text: #e6edf7;
+    --muted: #8ea1c2; --accent: #4fd1c5; --warn: #f5a623; --danger: #e5484d; --ok: #2fbf71;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:28px 24px 8px; max-width:980px; margin:0 auto; }
+  header h1 { margin:0; font-size:22px; letter-spacing:0.2px; }
+  header p { color:var(--muted); margin:6px 0 0; font-size:14px; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; letter-spacing:.3px; }
+  .badge.demo { background:rgba(79,209,197,.15); color:var(--accent); border:1px solid rgba(79,209,197,.4); }
+  main { max-width:980px; margin:0 auto; padding:12px 24px 60px; }
+  .toolbar { display:flex; align-items:center; justify-content:space-between; margin:18px 0; }
+  button.run { background:var(--accent); color:#04211d; border:none; padding:10px 18px; border-radius:8px;
+    font-weight:700; font-size:14px; cursor:pointer; }
+  button.run:disabled { opacity:.5; cursor:default; }
+  .empty { color:var(--muted); border:1px dashed var(--border); border-radius:12px; padding:40px; text-align:center; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+  .card-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .run-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; color:var(--muted); }
+  .status { font-weight:700; font-size:13px; padding:3px 10px; border-radius:99px; }
+  .status.awaiting { background:rgba(245,166,35,.15); color:var(--warn); }
+  .status.escalated { background:rgba(245,166,35,.15); color:var(--warn); }
+  .status.approved { background:rgba(47,191,113,.15); color:var(--ok); }
+  .status.published { background:rgba(47,191,113,.25); color:var(--ok); }
+  .status.rejected { background:rgba(229,72,77,.15); color:var(--danger); }
+  .stats { display:flex; gap:22px; margin:12px 0; flex-wrap:wrap; }
+  .stat { font-size:13px; color:var(--muted); }
+  .stat b { color:var(--text); font-size:15px; display:block; }
+  .anomaly { color:var(--warn); font-size:13px; margin:8px 0; }
+  .actions { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .actions a { text-decoration:none; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; }
+  .actions a.approve { background:var(--ok); color:#04210f; }
+  .actions a.reject { background:transparent; color:var(--danger); border:1px solid var(--danger); }
+  .preview { margin-top:10px; font-size:12px; color:var(--muted); }
+  .preview code { color:var(--text); }
+  footer { max-width:980px; margin:0 auto; padding:0 24px 40px; color:var(--muted); font-size:12px; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>ThreatGate <span class="badge demo">{{ 'DEMO MODE - mock firewall adapter' if demo_mode else 'LIVE' }}</span></h1>
+  <p>Public threat-intel feeds &rarr; dedupe &rarr; diff &rarr; human-in-the-loop approval &rarr; firewall blocklist publish.</p>
+</header>
+<main>
+  <div class="toolbar">
+    <div style="color:var(--muted); font-size:13px;">{{ runs|length }} run{{ '' if runs|length == 1 else 's' }} recorded</div>
+    <form method="post" action="{{ url_for('dashboard.run_now') }}">
+      <button class="run" type="submit" {{ 'disabled' if run_in_progress else '' }}>
+        {{ 'Run in progress…' if run_in_progress else 'Run pipeline now' }}
+      </button>
+    </form>
+  </div>
+
+  {% if not runs %}
+  <div class="empty">No runs yet. Click "Run pipeline now" to fetch live public threat feeds and generate the first diff.</div>
+  {% endif %}
+
+  {% for r in runs %}
+  {% set d = r.get('diff', {}) %}
+  {% set status = r.get('status', 'awaiting review') %}
+  {% set status_class = 'awaiting' %}
+  {% if status == 'pending supervisor review' %}{% set status_class = 'escalated' %}
+  {% elif status in ('approved', 'approved (supervisor-reviewed)') %}{% set status_class = 'approved' %}
+  {% elif status == 'published' %}{% set status_class = 'published' %}
+  {% elif status == 'rejected' %}{% set status_class = 'rejected' %}
+  {% endif %}
+  <div class="card">
+    <div class="card-head">
+      <span class="run-id">{{ r.run_id }}</span>
+      <span class="status {{ status_class }}">{{ status }}</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>{{ d.get('added_count', '–') }}</b>added</div>
+      <div class="stat"><b>{{ d.get('removed_count', '–') }}</b>removed</div>
+      <div class="stat"><b>{{ d.get('unchanged_count', '–') }}</b>unchanged</div>
+      <div class="stat"><b>{{ d.get('baseline_count', '–') }}</b>baseline</div>
+    </div>
+    {% if d.get('is_anomaly') %}<div class="anomaly">⚠️ {{ d.get('anomaly_reason') }}</div>{% endif %}
+
+    {% if status == 'awaiting review' and r.get('requester_tokens') %}
+    <div class="actions">
+      <a class="approve" href="{{ url_for('approval.approve', token=r.requester_tokens.approve) }}">Approve</a>
+      <a class="reject" href="{{ url_for('approval.reject_form', token=r.requester_tokens.reject) }}">Reject</a>
+    </div>
+    {% elif status == 'pending supervisor review' and r.get('escalation_tokens') %}
+    <div class="actions">
+      <a class="approve" href="{{ url_for('approval.approve', token=r.escalation_tokens.approve) }}">Approve as supervisor</a>
+      <a class="reject" href="{{ url_for('approval.reject_form', token=r.escalation_tokens.reject) }}">Reject as supervisor</a>
+    </div>
+    {% elif status in ('approved', 'approved (supervisor-reviewed)') and r.get('publish_token') %}
+    <div class="actions">
+      <a class="approve" href="{{ url_for('approval.confirm_publish', token=r.publish_token) }}">Confirm publish</a>
+    </div>
+    {% endif %}
+
+    {% if d.get('added_preview') %}
+    <div class="preview">
+      preview: {% for e in d.added_preview[:6] %}<code>{{ e.indicator }}</code>{{ ', ' if not loop.last else '' }}{% endfor %}
+      {% if d.get('added_count', 0) > 6 %} …and {{ d.added_count - 6 }} more{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</main>
+<footer>
+  Escalation threshold: {{ escalation_threshold }} new entries/run.
+  <a href="https://github.com" target="_blank" rel="noopener">Source on GitHub</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: threatgate
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --workers 1 --threads 4 --timeout 60
+    envVars:
+      - key: APPROVAL_SECRET_KEY
+        generateValue: true
+      - key: THREATGATE_DEMO_MODE
+        value: "true"
+      - key: APPROVAL_API_BASE_URL
+        sync: false
+      - key: PIPELINE_INTERVAL_MINUTES
+        value: "60"
