@@ -4,9 +4,11 @@
 
 ThreatGate pulls indicators of compromise from several public threat-intelligence feeds, merges and deduplicates them, computes what changed since the last approved list, and routes that change through a lightweight, signed-link approval workflow before it's ever written to a firewall. Nobody gets auto-blocked by an automation script having a bad day — a human always clicks approve first, and a second, separate click confirms the actual publish.
 
-**[Live demo](#) — click "Run pipeline now" to watch it fetch real public feeds end-to-end.** *(replace with your deployed URL)*
+**[Live demo](https://threatgate.onrender.com) — click "Run pipeline now" to watch it fetch real public feeds end-to-end.** *(replace with your actual Render URL)*
 
 > 這個專案示範一套「公開威脅情資 → 去重 → 差異比對 → 人工核准 → 防火牆黑名單發布」的自動化流程,重點在於用簽章連結取代額外的登入系統做核准關卡,並把「核准」跟「真正寫入防火牆」拆成兩個獨立動作。程式碼與註解為中英雙語,方便不同背景的讀者閱讀。
+
+![ThreatGate dashboard showing a live run pulled from real public threat-intel feeds, automatically escalated to supervisor review](docs/screenshot-dashboard.png)
 
 ---
 
